@@ -1,0 +1,13 @@
+.git/
+.gitignore
+.dockerignore
+README.md
+*.md
+.venv/
+venv/
+__pycache__/
+*.pyc
+client_secret*.json
+token*.json
+.vscode/
+.idea/
