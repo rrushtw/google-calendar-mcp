@@ -79,6 +79,15 @@ def run_auth_flow() -> None:
         flush=True,
     )
     flow = InstalledAppFlow.from_client_secrets_file(str(cs), SCOPES)
-    creds = flow.run_local_server(host="0.0.0.0", port=8080, open_browser=False)
+    # Google OAuth rejects 0.0.0.0 as a redirect URI host (only 'localhost'
+    # and '127.0.0.1' are accepted for loopback). We need to bind the socket
+    # to 0.0.0.0 inside the container (so the host's `-p 8080:8080` forward
+    # can reach us) but advertise 'localhost' to Google as the redirect URI.
+    creds = flow.run_local_server(
+        host="localhost",
+        bind_addr="0.0.0.0",
+        port=8080,
+        open_browser=False,
+    )
     tp.write_text(creds.to_json())
     print(f"[gcal-mcp] token saved to {tp}", flush=True)
