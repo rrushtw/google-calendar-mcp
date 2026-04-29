@@ -52,6 +52,7 @@ def load_credentials() -> Credentials:
         if creds.expired and creds.refresh_token:
             creds.refresh(Request())
             tp.write_text(creds.to_json())
+            tp.chmod(0o600)
         else:
             raise RuntimeError(
                 "Credentials invalid and cannot refresh; re-run ./auth.sh."
@@ -90,4 +91,5 @@ def run_auth_flow() -> None:
         open_browser=False,
     )
     tp.write_text(creds.to_json())
+    tp.chmod(0o600)
     print(f"[gcal-mcp] token saved to {tp}", flush=True)

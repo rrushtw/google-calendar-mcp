@@ -19,5 +19,6 @@ if [[ ! -f "$CONFIG_DIR/token.json" ]]; then
 fi
 
 exec docker run -i --rm \
+  --user "$(id -u):$(id -g)" \
   -v "$CONFIG_DIR:/config" \
   "$IMAGE_TAG"
