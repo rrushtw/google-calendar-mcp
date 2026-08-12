@@ -22,7 +22,9 @@ fi
 
 echo "[gcal-mcp] starting OAuth flow on host port 8080..." >&2
 echo "[gcal-mcp] copy the URL printed below into your host browser." >&2
-exec docker run -it --rm \
+# No -it: the flow waits on an HTTP callback to port 8080, never on stdin, and
+# -it breaks when this is run from a non-terminal (e.g. Claude Code's `!`).
+exec docker run --rm \
   --user "$(id -u):$(id -g)" \
   -p 8080:8080 \
   -v "$CONFIG_DIR:/config" \
