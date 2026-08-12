@@ -15,7 +15,7 @@ your machine with credentials you control.
 
 - Docker (any recent version)
 - A GCP **OAuth 2.0 Client ID — Desktop app type** with the Google Calendar
-  API enabled
+  API and the Google Tasks API enabled
 - `client_secret.json` placed at `~/.config/gcal-mcp/client_secret.json`
   (`chmod 600`)
 - Host port 8080 free during the one-time auth step
@@ -39,8 +39,13 @@ your machine with credentials you control.
 
    First run builds the Docker image (~200MB). Then the script prints a URL.
    Open it in your host browser, consent to the requested scopes
-   (`https://www.googleapis.com/auth/calendar`). On success, the script
+   (`https://www.googleapis.com/auth/calendar` and
+   `https://www.googleapis.com/auth/tasks`). On success, the script
    writes `~/.config/gcal-mcp/token.json` and exits.
+
+   Re-run this whenever the scope list grows — an older token keeps
+   refreshing fine but the server will refuse to start against it, naming
+   the missing scope.
 
 3. (Optional) Sanity check:
 
@@ -78,6 +83,18 @@ Restart Claude Code. New sessions will spawn the server on demand.
 | `create_event` | Insert event. Supports `reminders_overrides` for per-event multi-layer popups (the claude.ai connector did *not* expose this). |
 | `update_event` | Patch existing event. Only provided fields are updated. |
 | `delete_event` | Delete by ID. |
+| `list_task_lists` | Enumerate Google Tasks lists. |
+| `list_tasks` | List tasks in the user's manual (drag) order; supports `due_min` / `due_max` / `show_completed`. |
+| `create_task` | Insert task. `due` is date-only — see below. |
+| `complete_task` | Mark a task completed. |
+| `delete_task` | Delete by ID. |
+
+### Google Tasks due dates are date-only
+
+The Tasks API [discards the time portion of `due`](https://developers.google.com/workspace/tasks/reference/rest/v1/tasks)
+and will not read it back, even for tasks whose time was set in the mobile
+app. It also has no tags, no reminder field, and no recurrence. Anything
+needing a time-of-day reminder belongs in a calendar event instead.
 
 ## Token refresh
 
@@ -108,5 +125,7 @@ re-run `./auth.sh`.
 │   ├── __main__.py       # entry: default → server, --auth → OAuth flow
 │   ├── auth.py           # credential load + InstalledAppFlow
 │   └── server.py         # FastMCP server with @tool decorators
+├── tests/
+│   └── test_due.py       # assert-based check for due-date normalisation
 └── README.md
 ```

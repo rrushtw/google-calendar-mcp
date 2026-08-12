@@ -7,6 +7,7 @@ mounted to `/config`.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -17,7 +18,17 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 
 SCOPES: list[str] = [
     "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/tasks",
 ]
+
+
+def missing_scopes(token_scopes: list[str] | None) -> list[str]:
+    """Scopes SCOPES requires that a token does not carry.
+
+    A token file written before this project gained a scope simply omits it.
+    Treat a missing `scopes` key as carrying nothing.
+    """
+    return sorted(set(SCOPES) - set(token_scopes or []))
 
 
 def config_dir() -> Path:
@@ -47,6 +58,18 @@ def load_credentials() -> Credentials:
         raise RuntimeError(
             f"No token at {tp}. Run `./auth.sh` once to perform initial OAuth."
         )
+    # Check the scopes recorded IN THE FILE before touching the token. A token
+    # minted before a scope was added otherwise fails deep inside refresh with
+    # an opaque `invalid_scope`, or (if unexpired) at the first API call with a
+    # 403. `creds.has_scopes()` is no help: it reports the scopes we just
+    # *asked* for, not the ones the token actually carries.
+    missing = missing_scopes(json.loads(tp.read_text()).get("scopes"))
+    if missing:
+        raise RuntimeError(
+            f"Token at {tp} lacks scope(s): {', '.join(missing)}. "
+            "Re-run ./auth.sh to re-consent."
+        )
+
     creds = Credentials.from_authorized_user_file(str(tp), SCOPES)
     if not creds.valid:
         if creds.expired and creds.refresh_token:
