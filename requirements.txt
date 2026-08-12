@@ -1,4 +1,7 @@
-mcp>=1.0.0
+# ponytail: pinned to <2 — mcp 2.0 removed mcp.server.fastmcp (now
+# mcp.server.mcpserver with a renamed class). Upgrade path: port server.py's
+# FastMCP import + decorators to the 2.x API, then drop the ceiling.
+mcp>=1.0.0,<2
 google-api-python-client>=2.140.0
 google-auth-oauthlib>=1.2.0
 google-auth-httplib2>=0.2.0

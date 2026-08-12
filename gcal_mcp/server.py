@@ -220,6 +220,138 @@ def delete_event(
     }
 
 
+# --------------------------------------------------------------------------
+# Google Tasks v1
+#
+# The Tasks API records only the DATE part of `due` — the time is discarded on
+# write and is not readable, even though the mobile app can set one. Anything
+# needing a time-of-day reminder belongs in a calendar event, not a task.
+# --------------------------------------------------------------------------
+
+
+def _tasks_service():
+    """Build a Tasks v1 service for each call. Cheap (no network)."""
+    return build(
+        "tasks", "v1", credentials=load_credentials(), cache_discovery=False
+    )
+
+
+def _rfc3339_due(due: str) -> str:
+    """Normalise a due date to the RFC 3339 form the Tasks API expects."""
+    return f"{due}T00:00:00.000Z" if len(due) == 10 else due
+
+
+@mcp.tool()
+def list_task_lists() -> list[dict[str, Any]]:
+    """List all Google Tasks lists (the 'boards' tasks are filed under)."""
+    items = _tasks_service().tasklists().list(maxResults=100).execute()
+    return [
+        {"id": t["id"], "title": t.get("title"), "updated": t.get("updated")}
+        for t in items.get("items", [])
+    ]
+
+
+@mcp.tool()
+def list_tasks(
+    task_list_id: str = "@default",
+    show_completed: bool = False,
+    due_min: str | None = None,
+    due_max: str | None = None,
+    max_results: int = 100,
+) -> list[dict[str, Any]]:
+    """List tasks in a list, in the user's manual (drag) order.
+
+    Args:
+        task_list_id: Task list ID from list_task_lists. Default '@default'.
+        show_completed: Include completed tasks. Default False.
+        due_min: 'YYYY-MM-DD' lower bound on due date. Optional.
+        due_max: 'YYYY-MM-DD' upper bound on due date. Optional.
+        max_results: Max tasks to return. Default 100.
+    """
+    kwargs: dict[str, Any] = {
+        "tasklist": task_list_id,
+        "maxResults": max_results,
+        "showCompleted": show_completed,
+        # Completed tasks are also flagged hidden, so showCompleted alone
+        # returns nothing without this.
+        "showHidden": show_completed,
+    }
+    if due_min:
+        kwargs["dueMin"] = _rfc3339_due(due_min)
+    if due_max:
+        kwargs["dueMax"] = _rfc3339_due(due_max)
+    items = _tasks_service().tasks().list(**kwargs).execute().get("items", [])
+    return [
+        {
+            "id": t["id"],
+            "title": t.get("title"),
+            "status": t.get("status"),
+            "due": (t.get("due") or "")[:10],
+            "notes": t.get("notes"),
+            "parent": t.get("parent"),
+            "position": t.get("position"),
+        }
+        for t in items
+    ]
+
+
+@mcp.tool()
+def create_task(
+    title: str,
+    task_list_id: str = "@default",
+    notes: str | None = None,
+    due: str | None = None,
+    parent: str | None = None,
+) -> dict[str, Any]:
+    """Create a task.
+
+    Args:
+        title: Task title (required).
+        task_list_id: Task list ID. Default '@default'.
+        notes: Free-text body. Optional.
+        due: Due date as 'YYYY-MM-DD'. Time of day is not supported by the
+            API — use create_event for anything needing a timed reminder.
+        parent: Parent task ID to nest under. Optional.
+    """
+    body: dict[str, Any] = {"title": title}
+    if notes:
+        body["notes"] = notes
+    if due:
+        body["due"] = _rfc3339_due(due)
+    kwargs: dict[str, Any] = {"tasklist": task_list_id, "body": body}
+    if parent:
+        kwargs["parent"] = parent
+    return _tasks_service().tasks().insert(**kwargs).execute()
+
+
+@mcp.tool()
+def complete_task(
+    task_id: str, task_list_id: str = "@default"
+) -> dict[str, Any]:
+    """Mark a task completed."""
+    return (
+        _tasks_service()
+        .tasks()
+        .patch(
+            tasklist=task_list_id, task=task_id, body={"status": "completed"}
+        )
+        .execute()
+    )
+
+
+@mcp.tool()
+def delete_task(task_id: str, task_list_id: str = "@default") -> dict[str, str]:
+    """Delete a task by ID."""
+    _tasks_service().tasks().delete(
+        tasklist=task_list_id, task=task_id
+    ).execute()
+    return {
+        "status": "deleted",
+        "task_id": task_id,
+        "task_list_id": task_list_id,
+    }
+
+
 def run_server() -> None:
     """Entry point used by python -m gcal_mcp."""
     mcp.run()
