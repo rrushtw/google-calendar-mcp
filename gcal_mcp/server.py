@@ -324,6 +324,67 @@ def create_task(
     return _tasks_service().tasks().insert(**kwargs).execute()
 
 
+def _task_patch_body(
+    title: str | None, notes: str | None, due: str | None, clear_due: bool
+) -> dict[str, Any]:
+    """Build the patch body for update_task. Omitted fields stay untouched.
+
+    An explicit None `due` cannot double as "clear it" — that is what the
+    caller sends when they only mean to edit the title — so clearing needs
+    its own flag.
+    """
+    body: dict[str, Any] = {}
+    if title is not None:
+        body["title"] = title
+    if notes is not None:
+        body["notes"] = notes
+    if clear_due:
+        body["due"] = None
+    elif due:
+        body["due"] = _rfc3339_due(due)
+    return body
+
+
+@mcp.tool()
+def update_task(
+    task_id: str,
+    task_list_id: str = "@default",
+    title: str | None = None,
+    notes: str | None = None,
+    due: str | None = None,
+    clear_due: bool = False,
+) -> dict[str, Any]:
+    """Edit a task in place. Only the fields you pass are changed.
+
+    Use this to reschedule or reword an existing task instead of
+    completing and recreating it — recreating a parent task orphans its
+    subtasks, and recreating anything loses its manual list position.
+
+    Args:
+        task_id: Task ID from list_tasks.
+        task_list_id: Task list ID. Default '@default'.
+        notes: Replacement notes body. Replaces the old one wholesale, so
+            pass the full text, not just the part you are adding.
+        due: New due date as 'YYYY-MM-DD'. Time of day is not supported by
+            the API — use create_event for anything needing a timed reminder.
+        clear_due: Remove the due date entirely. Wins over `due`.
+
+    Does not move a task between lists or reparent it; the API needs a
+    separate move call for that.
+    """
+    body = _task_patch_body(title, notes, due, clear_due)
+    if not body:
+        raise ValueError(
+            "update_task needs at least one of title / notes / due / clear_due"
+        )
+    return (
+        _tasks_service()
+        .tasks()
+        .patch(tasklist=task_list_id, task=task_id, body=body)
+        .execute()
+    )
+
+
 @mcp.tool()
 def complete_task(
     task_id: str, task_list_id: str = "@default"
