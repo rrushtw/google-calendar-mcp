@@ -86,6 +86,7 @@ Restart Claude Code. New sessions will spawn the server on demand.
 | `list_task_lists` | Enumerate Google Tasks lists. |
 | `list_tasks` | List tasks in the user's manual (drag) order; supports `due_min` / `due_max` / `show_completed`. |
 | `create_task` | Insert task. `due` is date-only — see below. |
+| `update_task` | Edit title / notes / due in place; only the fields passed are changed. `clear_due` drops the date. Does not reparent or move between lists. |
 | `complete_task` | Mark a task completed. |
 | `delete_task` | Delete by ID. |
 
